@@ -92,8 +92,6 @@ github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
-github.com/longhorn/backupstore v0.0.0-20251009075049-1b6c3422a333 h1:mJiphHiQRChtpshkCbJak377PwtFqsYz+zshc3GW818=
-github.com/longhorn/backupstore v0.0.0-20251009075049-1b6c3422a333/go.mod h1:aA1kAXXtLyqIik2X9NcRDhVK646/P/RlnhmgBU/sq5A=
 github.com/longhorn/go-common-libs v0.0.0-20251025140453-faa811992208 h1:yMQgxcNB6npVb1Ims2hYQQpDrU2JHuaLNdFS8STBqLo=
 github.com/longhorn/go-common-libs v0.0.0-20251025140453-faa811992208/go.mod h1:PRaMs6m409MbPGZ/v/Wlf6fePUEVcGa2leB14CxjL28=
 github.com/longhorn/go-iscsi-helper v0.0.0-20251102142448-23eedefc2b60 h1:lwACMOh9nKBzWkLpmyJkpigmB9HHYV5FfiiZ3jFohDM=
@@ -151,6 +149,8 @@ github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR
 github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
+github.com/shikanime/backupstore v0.0.0-20251009075049-1b6c3422a333 h1:8grT7xXESVOhgH1kJYShC9g6l++0MM3lfP9yT+exJJY=
+github.com/shikanime/backupstore v0.0.0-20251009075049-1b6c3422a333/go.mod h1:aA1kAXXtLyqIik2X9NcRDhVK646/P/RlnhmgBU/sq5A=
 github.com/shirou/gopsutil/v3 v3.24.5 h1:i0t8kL+kQTvpAYToeuiVk3TgDeKOFioZO3Ztz/iZ9pI=
 github.com/shirou/gopsutil/v3 v3.24.5/go.mod h1:bsoOS1aStSs9ErQ1WWfxllSeS1K5D+U30r2NfcubMVk=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=
