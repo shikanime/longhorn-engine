@@ -208,7 +208,7 @@ github.com/kr/pretty
 # github.com/kr/text v0.2.0
 ## explicit
 github.com/kr/text
-# github.com/longhorn/backupstore v0.0.0-20251009075049-1b6c3422a333 => github.com/shikanime/backupstore v0.0.0-20251009075049-1b6c3422a333
+# github.com/longhorn/backupstore v0.0.0-20251009075049-1b6c3422a333 => github.com/shikanime/backupstore v0.0.0-20251107192007-f6481e8aac6c
 ## explicit; go 1.23.0
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/azblob
@@ -541,4 +541,4 @@ k8s.io/utils/keymutex
 ## explicit; go 1.23
 sigs.k8s.io/json
 sigs.k8s.io/json/internal/golang/encoding/json
-# github.com/longhorn/backupstore => github.com/shikanime/backupstore v0.0.0-20251009075049-1b6c3422a333
+# github.com/longhorn/backupstore => github.com/shikanime/backupstore v0.0.0-20251107192007-f6481e8aac6c
