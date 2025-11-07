@@ -63,7 +63,7 @@ func mergeErrorChannels(ctx context.Context, channels ...<-chan error) <-chan er
 	return out
 }
 
-var backoffDuration = [...]time.Duration{time.Second, 5 * time.Second, 30 * time.Second}
+var backoffDuration = [...]time.Duration{time.Second, 5 * time.Second, 30 * time.Second, 1 * time.Minute, 5 * time.Minute, 10 * time.Minute, 30 * time.Minute, 60 * time.Minute, 120 * time.Minute}
 
 // readBlockWithRetry reads a block from the backup store with retry.
 func readBlockWithRetry(bsDriver BackupStoreDriver, blkFile string) (io.ReadCloser, error) {
