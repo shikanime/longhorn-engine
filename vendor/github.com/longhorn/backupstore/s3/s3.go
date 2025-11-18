@@ -1,7 +1,6 @@
 package s3
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -10,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/sirupsen/logrus"
 
 	"github.com/longhorn/backupstore"
@@ -112,8 +111,7 @@ func (s *BackupStoreDriver) List(listPath string) ([]string, error) {
 	if !strings.HasSuffix(path, "/") {
 		path += "/"
 	}
-
-	contents, prefixes, err := s.service.ListObjects(context.Background(), path, "/")
+	contents, prefixes, err := s.service.ListObjects(path, "/")
 	if err != nil {
 		log.WithError(err).Error("Failed to list s3")
 		return result, err
@@ -126,13 +124,13 @@ func (s *BackupStoreDriver) List(listPath string) ([]string, error) {
 	}
 	result = []string{}
 	for _, obj := range contents {
-		r := strings.TrimPrefix(aws.ToString(obj.Key), path)
+		r := strings.TrimPrefix(*obj.Key, path)
 		if r != "" {
 			result = append(result, r)
 		}
 	}
 	for _, p := range prefixes {
-		r := strings.TrimPrefix(aws.ToString(p.Prefix), path)
+		r := strings.TrimPrefix(*p.Prefix, path)
 		r = strings.TrimSuffix(r, "/")
 		if r != "" {
 			result = append(result, r)
@@ -148,7 +146,7 @@ func (s *BackupStoreDriver) FileExists(filePath string) bool {
 
 func (s *BackupStoreDriver) FileSize(filePath string) int64 {
 	path := s.updatePath(filePath)
-	head, err := s.service.HeadObject(context.Background(), path)
+	head, err := s.service.HeadObject(path)
 	if err != nil || head.ContentLength == nil {
 		return -1
 	}
@@ -157,21 +155,20 @@ func (s *BackupStoreDriver) FileSize(filePath string) int64 {
 
 func (s *BackupStoreDriver) FileTime(filePath string) time.Time {
 	path := s.updatePath(filePath)
-	head, err := s.service.HeadObject(context.Background(), path)
+	head, err := s.service.HeadObject(path)
 	if err != nil || head.ContentLength == nil {
 		return time.Time{}
 	}
-	return head.LastModified.UTC()
+	return aws.TimeValue(head.LastModified).UTC()
 }
 
 func (s *BackupStoreDriver) Remove(path string) error {
-	ctx := context.Background()
-	return s.service.DeleteObjects(ctx, s.updatePath(path))
+	return s.service.DeleteObjects(s.updatePath(path))
 }
 
 func (s *BackupStoreDriver) Read(src string) (io.ReadCloser, error) {
 	path := s.updatePath(src)
-	rc, err := s.service.GetObject(context.Background(), path)
+	rc, err := s.service.GetObject(path)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +177,7 @@ func (s *BackupStoreDriver) Read(src string) (io.ReadCloser, error) {
 
 func (s *BackupStoreDriver) Write(dst string, rs io.ReadSeeker) error {
 	path := s.updatePath(dst)
-	return s.service.PutObject(context.Background(), path, rs)
+	return s.service.PutObject(path, rs)
 }
 
 func (s *BackupStoreDriver) Upload(src, dst string) error {
@@ -188,16 +185,14 @@ func (s *BackupStoreDriver) Upload(src, dst string) error {
 	if err != nil {
 		return nil
 	}
-	defer func() {
-		_ = file.Close()
-	}()
+	defer file.Close()
 	path := s.updatePath(dst)
-	return s.service.PutObject(context.Background(), path, file)
+	return s.service.PutObject(path, file)
 }
 
 func (s *BackupStoreDriver) Download(src, dst string) error {
 	if _, err := os.Stat(dst); err != nil {
-		_ = os.Remove(dst)
+		os.Remove(dst)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(dst), os.ModeDir|0700); err != nil {
@@ -208,18 +203,14 @@ func (s *BackupStoreDriver) Download(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = f.Close()
-	}()
+	defer f.Close()
 
 	path := s.updatePath(src)
-	rc, err := s.service.GetObject(context.Background(), path)
+	rc, err := s.service.GetObject(path)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = rc.Close()
-	}()
+	defer rc.Close()
 
 	_, err = io.Copy(f, rc)
 	return err
