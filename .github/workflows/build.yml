@@ -131,10 +131,10 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # longhornio/longhorn-engine image
+    # ghcr.io/shikanime/longhorn-engine image
     - name: Build and publish image
       env:
-        REPO: docker.io/longhornio
+        REPO: ghcr.io/shikanime
         TAG: ${{ needs.build_info.outputs.image_tag }}-amd64
         TARGET_PLATFORMS: linux/amd64
       run: make workflow-image-build-push
@@ -179,10 +179,10 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # longhornio/longhorn-engine image
+    # ghcr.io/shikanime/longhorn-engine image
     - name: Build and publish image
       env:
-        REPO: docker.io/longhornio
+        REPO: ghcr.io/shikanime
         TAG: ${{ needs.build_info.outputs.image_tag }}-arm64
         TARGET_PLATFORMS: linux/arm64
       run: make workflow-image-build-push
@@ -203,9 +203,9 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # longhornio/longhorn-engine image
+    # ghcr.io/shikanime/longhorn-engine image
     - name: docker-pull-manifest-longhorn-engine
       env:
-        REPO: docker.io/longhornio
+        REPO: ghcr.io/shikanime
         TAG: ${{ needs.build_info.outputs.image_tag }}
       run: make workflow-manifest-image
