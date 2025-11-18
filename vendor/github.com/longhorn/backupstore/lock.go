@@ -88,10 +88,9 @@ func (lock *FileLock) Lock() error {
 	defer lock.mutex.Unlock()
 
 	operation := BackupOperationUndefined
-	switch lock.Type {
-	case BACKUP_LOCK: //  RESTORE_LOCK is same as BACKUP_LOCK
+	if lock.Type == BACKUP_LOCK || lock.Type == RESTORE_LOCK {
 		operation = BackupOperationCreateRestore
-	case DELETION_LOCK:
+	} else if lock.Type == DELETION_LOCK {
 		operation = BackupOperationDelete
 	}
 
@@ -122,7 +121,7 @@ func (lock *FileLock) Lock() error {
 	if !lock.canAcquire() {
 		file := getLockFilePath(lock.volume, lock.Name)
 		_ = removeLock(lock)
-		return fmt.Errorf("failed to acquire lock %v when performing backup %v, please try again later", file, operation)
+		return fmt.Errorf("failed to acquire lock %v when performing backup %v, please try again later.", file, operation)
 	}
 
 	file := getLockFilePath(lock.volume, lock.Name)

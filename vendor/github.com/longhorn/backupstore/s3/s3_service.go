@@ -1,7 +1,6 @@
 package s3
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,16 +8,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/retry"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cockroachdb/errors"
 
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	bhttp "github.com/longhorn/backupstore/http"
 )
 
@@ -30,13 +26,6 @@ type service struct {
 
 const (
 	VirtualHostedStyle = "VIRTUAL_HOSTED_STYLE"
-
-	// AWSRetryMaxAttempts is the default maximum number of retry attempts for a single API operation that fails with a retryable error.
-	AWSRetryMaxAttempts = 5
-	// AWSRetryMaximumAttempts maximum number attempts that should be made.
-	AWSRetryMaximumAttempts = 10
-	// AWSRetryMaximumBackoff specifies the maximum duration between retried attempts.
-	AWSRetryMaximumBackoff = 300 * time.Second
 )
 
 func newService(u *url.URL) (*service, error) {
@@ -60,106 +49,85 @@ func newService(u *url.URL) (*service, error) {
 	return &s, nil
 }
 
-func (s *service) newInstance(ctx context.Context, retryBackoff bool) (*s3.Client, error) {
-	// Load AWS configuration
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(s.Region),
-		config.WithRetryMaxAttempts(AWSRetryMaxAttempts),
-		config.WithRequestChecksumCalculation(aws.RequestChecksumCalculationWhenRequired),
-	)
-	if err != nil {
-		return nil, err
-	}
+func (s *service) newInstance() (*s3.S3, error) {
 	// get custom endpoint
 	endpoints := os.Getenv("AWS_ENDPOINTS")
-	if endpoints != "" {
-		cfg.BaseEndpoint = aws.String(endpoints)
-	}
+	config := &aws.Config{Region: &s.Region, MaxRetries: aws.Int(3)}
 
-	usePathStyle := false
 	virtualHostedStyleEnabled := os.Getenv(VirtualHostedStyle)
 	if virtualHostedStyleEnabled == "true" {
-		usePathStyle = false
+		config.S3ForcePathStyle = aws.Bool(false)
 	} else if virtualHostedStyleEnabled == "false" {
-		usePathStyle = true
-	} else if endpoints != "" {
-		usePathStyle = true
+		config.S3ForcePathStyle = aws.Bool(true)
+	}
+
+	if endpoints != "" {
+		config.Endpoint = aws.String(endpoints)
+		if config.S3ForcePathStyle == nil {
+			config.S3ForcePathStyle = aws.Bool(true)
+		}
 	}
 
 	if s.Client != nil {
-		cfg.HTTPClient = s.Client
+		config.HTTPClient = s.Client
 	}
 
-	// Create S3 client with options
-	return s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.UsePathStyle = usePathStyle
-		if retryBackoff {
-			o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
-				so.MaxAttempts = AWSRetryMaximumAttempts
-				so.MaxBackoff = AWSRetryMaximumBackoff
-			})
-		}
-	}), nil
+	ses, err := session.NewSession(config)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := ses.Config.Credentials.Get(); err != nil {
+		return nil, err
+	}
+	return s3.New(ses), nil
 }
 
 func (s *service) Close() {
 }
 
 func parseAwsError(err error) error {
-	var ae smithy.APIError
-	if errors.As(err, &ae) {
-		message := fmt.Sprintf("AWS Error: %s %s", ae.ErrorCode(), ae.ErrorMessage())
+	if awsErr, ok := err.(awserr.Error); ok {
+		message := fmt.Sprintln("AWS Error: ", awsErr.Code(), awsErr.Message(), awsErr.OrigErr())
+		if reqErr, ok := err.(awserr.RequestFailure); ok {
+			message += fmt.Sprintln(reqErr.StatusCode(), reqErr.RequestID())
+		}
 		return fmt.Errorf("%s", message)
 	}
-	// Try to extract HTTP status code and request ID if available
-	var re smithyhttp.ResponseError
-	if errors.As(err, &re) {
-		return fmt.Errorf("AWS HTTP Error: %d %v", re.HTTPStatusCode(), re.Err)
-	}
-
-	// Check for operation errors (includes operation context)
-	var oe *smithy.OperationError
-	if errors.As(err, &oe) {
-		return fmt.Errorf("AWS Operation Error %s %v", oe.Operation(), oe.Err)
-	}
-
 	return err
 }
 
-func (s *service) ListObjects(ctx context.Context, key, delimiter string) ([]types.Object, []types.CommonPrefix, error) {
-	svc, err := s.newInstance(ctx, false)
+func (s *service) ListObjects(key, delimiter string) ([]*s3.Object, []*s3.CommonPrefix, error) {
+	svc, err := s.newInstance()
 	if err != nil {
 		return nil, nil, err
 	}
 	defer s.Close()
 	// WARNING: Directory must end in "/" in S3, otherwise it may match
 	// unintentionally
-	params := &s3.ListObjectsV2Input{
+	params := &s3.ListObjectsInput{
 		Bucket:    aws.String(s.Bucket),
 		Prefix:    aws.String(key),
 		Delimiter: aws.String(delimiter),
 	}
 
 	var (
-		objects        []types.Object
-		commonPrefixes []types.CommonPrefix
+		objects       []*s3.Object
+		commonPrefixs []*s3.CommonPrefix
 	)
-	paginator := s3.NewListObjectsV2Paginator(svc, params)
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list objects with param: %+v error: %v",
-				params, parseAwsError(err))
-		}
+	err = svc.ListObjectsPages(params, func(page *s3.ListObjectsOutput, lastPage bool) bool {
 		objects = append(objects, page.Contents...)
-		commonPrefixes = append(commonPrefixes, page.CommonPrefixes...)
+		commonPrefixs = append(commonPrefixs, page.CommonPrefixes...)
+		return !lastPage
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list objects with param: %+v error: %v",
+			params, parseAwsError(err))
 	}
-
-	return objects, commonPrefixes, nil
+	return objects, commonPrefixs, nil
 }
 
-func (s *service) HeadObject(ctx context.Context, key string) (*s3.HeadObjectOutput, error) {
-	svc, err := s.newInstance(ctx, false)
+func (s *service) HeadObject(key string) (*s3.HeadObjectOutput, error) {
+	svc, err := s.newInstance()
 	if err != nil {
 		return nil, err
 	}
@@ -168,26 +136,27 @@ func (s *service) HeadObject(ctx context.Context, key string) (*s3.HeadObjectOut
 		Bucket: aws.String(s.Bucket),
 		Key:    aws.String(key),
 	}
-	resp, err := svc.HeadObject(ctx, params)
+	resp, err := svc.HeadObject(params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get metadata for object: %v error: %v", key, parseAwsError(err))
+		return nil, fmt.Errorf("failed to get metadata for object: %v response: %v error: %v",
+			key, resp.String(), parseAwsError(err))
 	}
 	return resp, nil
 }
 
-func (s *service) PutObject(ctx context.Context, key string, reader io.ReadSeeker) error {
-	svc, err := s.newInstance(ctx, true)
+func (s *service) PutObject(key string, reader io.ReadSeeker) error {
+	svc, err := s.newInstance()
 	if err != nil {
 		return err
 	}
 	defer s.Close()
 
-	// Use the AWS S3 uploader which handles signing correctly
-	uploader := manager.NewUploader(svc)
-
-	// Ensure reader is at the beginning
-	if _, err := reader.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("failed to seek reader to start: %v", err)
+	svc.Client.Config.Retryer = client.DefaultRetryer{
+		NumMaxRetries:    10,
+		MinRetryDelay:    500 * time.Millisecond,
+		MinThrottleDelay: 1 * time.Second,
+		MaxRetryDelay:    300 * time.Second,
+		MaxThrottleDelay: 600 * time.Second,
 	}
 
 	params := &s3.PutObjectInput{
@@ -196,15 +165,16 @@ func (s *service) PutObject(ctx context.Context, key string, reader io.ReadSeeke
 		Body:   reader,
 	}
 
-	_, err = uploader.Upload(ctx, params)
+	resp, err := svc.PutObject(params)
 	if err != nil {
-		return fmt.Errorf("failed to put object: %v error: %v", key, parseAwsError(err))
+		return fmt.Errorf("failed to put object: %v response: %v error: %v",
+			key, resp.String(), parseAwsError(err))
 	}
 	return nil
 }
 
-func (s *service) GetObject(ctx context.Context, key string) (io.ReadCloser, error) {
-	svc, err := s.newInstance(ctx, false)
+func (s *service) GetObject(key string) (io.ReadCloser, error) {
+	svc, err := s.newInstance()
 	if err != nil {
 		return nil, err
 	}
@@ -215,22 +185,23 @@ func (s *service) GetObject(ctx context.Context, key string) (io.ReadCloser, err
 		Key:    aws.String(key),
 	}
 
-	resp, err := svc.GetObject(ctx, params)
+	resp, err := svc.GetObject(params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get object: %v error: %v", key, parseAwsError(err))
+		return nil, fmt.Errorf("failed to get object: %v response: %v error: %v",
+			key, resp.String(), parseAwsError(err))
 	}
 
 	return resp.Body, nil
 }
 
-func (s *service) DeleteObjects(ctx context.Context, key string) error {
+func (s *service) DeleteObjects(key string) error {
 
-	objects, _, err := s.ListObjects(ctx, key, "")
+	objects, _, err := s.ListObjects(key, "")
 	if err != nil {
 		return errors.Wrapf(err, "failed to list objects with prefix %v before removing them", key)
 	}
 
-	svc, err := s.newInstance(ctx, false)
+	svc, err := s.newInstance()
 	if err != nil {
 		return errors.Wrap(err, "failed to get a new s3 client instance before removing objects")
 	}
@@ -238,14 +209,15 @@ func (s *service) DeleteObjects(ctx context.Context, key string) error {
 
 	var deletionFailures []string
 	for _, object := range objects {
-		_, err := svc.DeleteObject(ctx, &s3.DeleteObjectInput{
+		resp, err := svc.DeleteObject(&s3.DeleteObjectInput{
 			Bucket: aws.String(s.Bucket),
 			Key:    object.Key,
 		})
 
 		if err != nil {
-			log.Errorf("Failed to delete object: %v error: %v", aws.ToString(object.Key), parseAwsError(err))
-			deletionFailures = append(deletionFailures, aws.ToString(object.Key))
+			log.Errorf("Failed to delete object: %v response: %v error: %v",
+				aws.StringValue(object.Key), resp.String(), parseAwsError(err))
+			deletionFailures = append(deletionFailures, aws.StringValue(object.Key))
 		}
 	}
 

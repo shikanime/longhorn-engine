@@ -63,7 +63,7 @@ func fstypeToKind(fstype int64) (string, error) {
 
 // GenerateName generates a 16-byte name
 func GenerateName(prefix string) string {
-	suffix := strings.ReplaceAll(NewUUID(), "-", "")
+	suffix := strings.Replace(NewUUID(), "-", "", -1)
 	return prefix + "-" + suffix[:16]
 }
 
@@ -85,9 +85,7 @@ func GetFileChecksum(filePath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = f.Close()
-	}()
+	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
@@ -111,10 +109,10 @@ func CompressData(method string, data []byte) (io.ReadSeeker, error) {
 	}
 
 	if _, err := w.Write(data); err != nil {
-		_ = w.Close()
+		w.Close()
 		return nil, err
 	}
-	_ = w.Close()
+	w.Close()
 	return bytes.NewReader(buffer.Bytes()), nil
 }
 
@@ -124,9 +122,7 @@ func DecompressAndVerify(method string, src io.Reader, checksum string) (io.Read
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create decompression reader")
 	}
-	defer func() {
-		_ = r.Close()
-	}()
+	defer r.Close()
 	block, err := io.ReadAll(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read decompressed data")

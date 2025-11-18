@@ -63,7 +63,18 @@ func mergeErrorChannels(ctx context.Context, channels ...<-chan error) <-chan er
 	return out
 }
 
-var backoffDuration = [...]time.Duration{time.Second, 5 * time.Second, 30 * time.Second, 1 * time.Minute, 5 * time.Minute, 10 * time.Minute, 30 * time.Minute, 60 * time.Minute, 120 * time.Minute}
+var backoffDuration = [...]time.Duration{
+	time.Second,
+	5 * time.Second,
+	30 * time.Second,
+	2 * time.Minute,
+	5 * time.Minute,
+	15 * time.Minute,
+	30 * time.Minute,
+	1 * time.Hour,
+	2 * time.Hour,
+	6 * time.Hour,
+}
 
 // readBlockWithRetry reads a block from the backup store with retry.
 func readBlockWithRetry(bsDriver BackupStoreDriver, blkFile string) (io.ReadCloser, error) {
@@ -91,9 +102,7 @@ func DecompressAndVerifyWithFallback(bsDriver BackupStoreDriver, blkFile, decomp
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = rc.Close()
-	}()
+	defer rc.Close()
 
 	r, err := util.DecompressAndVerify(decompression, rc, checksum)
 	if err == nil {
@@ -114,9 +123,7 @@ func DecompressAndVerifyWithFallback(bsDriver BackupStoreDriver, blkFile, decomp
 		if err != nil {
 			return nil, err
 		}
-		defer func() {
-			_ = retriedRc.Close()
-		}()
+		defer retriedRc.Close()
 
 		r, err = util.DecompressAndVerify(alternativeDecompression, retriedRc, checksum)
 		if err != nil {
