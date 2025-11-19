@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -62,20 +63,42 @@ func mergeErrorChannels(ctx context.Context, channels ...<-chan error) <-chan er
 	return out
 }
 
+var backoffDuration = [...]time.Duration{
+	time.Second,
+	5 * time.Second,
+	30 * time.Second,
+	2 * time.Minute,
+	5 * time.Minute,
+	15 * time.Minute,
+	30 * time.Minute,
+	1 * time.Hour,
+	2 * time.Hour,
+	6 * time.Hour,
+}
+
+// readBlockWithRetry reads a block from the backup store with retry.
+func readBlockWithRetry(bsDriver BackupStoreDriver, blkFile string) (io.ReadCloser, error) {
+	attempts := 0
+	for {
+		rc, err := bsDriver.Read(blkFile)
+		if err == nil {
+			return rc, nil
+		}
+		if attempts < len(backoffDuration) {
+			dur := backoffDuration[attempts]
+			time.Sleep(dur)
+			attempts++
+			continue
+		}
+		return nil, errors.Wrapf(err, "failed to read block %v after %d attempts", blkFile, attempts+1)
+	}
+}
+
 // DecompressAndVerifyWithFallback decompresses the given data and verifies the data integrity.
 // If the decompression fails, it will try to decompress with the fallback method.
 func DecompressAndVerifyWithFallback(bsDriver BackupStoreDriver, blkFile, decompression, checksum string) (io.Reader, error) {
-	// Helper function to read block from backup store
-	readBlock := func() (io.ReadCloser, error) {
-		rc, err := bsDriver.Read(blkFile)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to read block %v", blkFile)
-		}
-		return rc, nil
-	}
-
 	// First attempt to read and decompress/verify
-	rc, err := readBlock()
+	rc, err := readBlockWithRetry(bsDriver, blkFile)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +121,7 @@ func DecompressAndVerifyWithFallback(bsDriver BackupStoreDriver, blkFile, decomp
 
 	// Second attempt with alternative decompression, if applicable
 	if alternativeDecompression != "" {
-		retriedRc, err := readBlock()
+		retriedRc, err := readBlockWithRetry(bsDriver, blkFile)
 		if err != nil {
 			return nil, err
 		}

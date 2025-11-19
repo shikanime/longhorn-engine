@@ -4,6 +4,8 @@ go 1.24.0
 
 toolchain go1.25.4
 
+replace github.com/longhorn/backupstore => github.com/shikanime/backupstore v0.0.0-20251118224805-7949c75fe360
+
 require (
 	github.com/docker/go-units v0.5.0
 	github.com/gofrs/flock v0.12.1
