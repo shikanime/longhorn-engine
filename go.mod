@@ -4,7 +4,7 @@ go 1.24.0
 
 toolchain go1.25.4
 
-replace github.com/longhorn/backupstore => github.com/shikanime/backupstore v0.0.0-20251120105443-d4a0517b0423
+replace github.com/longhorn/backupstore => github.com/shikanime/backupstore v0.0.0-20251120110308-dd539de29652
 
 require (
 	github.com/docker/go-units v0.5.0
@@ -43,6 +43,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.24 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.13 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.19.8 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.1.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
